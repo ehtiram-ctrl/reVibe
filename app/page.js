@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { FFmpeg } from "@ffmpeg/ffmpeg";
 import { fetchFile, toBlobURL } from "@ffmpeg/util";
 
-function MatrixRainOverlay() {
+function MatrixRainOverlay({ isMax }) {
   const canvasRef = useRef(null);
 
   useEffect(() => {
@@ -21,10 +21,10 @@ function MatrixRainOverlay() {
     const drops = Array(columns).fill(1);
 
     const interval = setInterval(() => {
-      ctx.fillStyle = "rgba(0, 15, 8, 0.18)";
+      ctx.fillStyle = isMax ? "rgba(18, 2, 4, 0.18)" : "rgba(0, 15, 8, 0.18)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      ctx.fillStyle = "#10b981";
+      ctx.fillStyle = isMax ? "#ef4444" : "#10b981";
       ctx.font = `${fontSize}px monospace`;
 
       for (let i = 0; i < drops.length; i++) {
@@ -39,7 +39,7 @@ function MatrixRainOverlay() {
     }, 45);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [isMax]);
 
   return (
     <canvas
@@ -75,6 +75,8 @@ export default function Home() {
   const ffmpegRef = useRef(null);
   const beforeVideoRef = useRef(null);
   const afterVideoRef = useRef(null);
+
+  const isMax = mode === "max";
 
   useEffect(() => {
     if (status !== "processing") return;
@@ -144,9 +146,13 @@ export default function Home() {
       } else if (mode === "medium") {
         vfParts.push("crop=iw*0.96:ih*0.96,scale=iw:ih,eq=contrast=1.04:brightness=0.01:saturation=1.06,setpts=0.98*PTS");
         af = "asetrate=44100*1.015,aresample=44100,atempo=1.005";
-      } else {
+      } else if (mode === "deep") {
         vfParts.push("crop=iw*0.94:ih*0.94,scale=iw:ih,eq=contrast=1.06:brightness=0.015:saturation=1.08,noise=alls=2:allf=t,setpts=0.97*PTS");
         af = "asetrate=44100*1.025,aresample=44100,atempo=1.005";
+      } else {
+        // MAX rejimi: 8% kəsim + mikro rəng tonu + canlı kontrast + 1.04x sürət + zərif tekstura
+        vfParts.push("crop=iw*0.92:ih*0.92,scale=iw:ih,hue=h=3:s=1.12,eq=contrast=1.09:brightness=0.02,noise=alls=3:allf=t,setpts=0.96*PTS");
+        af = "asetrate=44100*1.035,aresample=44100,atempo=1.006";
       }
 
       if (flipHorizontal) {
@@ -203,7 +209,11 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-[#060908] text-zinc-100 flex flex-col justify-between p-4 sm:p-6 relative overflow-hidden">
-      <div className="absolute top-[-15%] left-1/2 -translate-x-1/2 w-[520px] h-[320px] bg-emerald-500/10 blur-[130px] rounded-full pointer-events-none" />
+      <div
+        className={`absolute top-[-15%] left-1/2 -translate-x-1/2 w-[520px] h-[320px] blur-[130px] rounded-full pointer-events-none transition-colors duration-500 ${
+          isMax ? "bg-red-500/15" : "bg-emerald-500/10"
+        }`}
+      />
 
       {/* Minimalist Üst Bar */}
       <header className="w-full max-w-md mx-auto flex items-center justify-between pt-1 pb-4 relative z-10">
@@ -245,7 +255,13 @@ export default function Home() {
       </header>
 
       {/* Ana Kart */}
-      <div className="w-full max-w-md mx-auto bg-zinc-900/80 backdrop-blur-xl border border-zinc-800/90 rounded-3xl p-5 sm:p-6 shadow-[0_0_50px_rgba(16,185,129,0.07)] relative z-10 my-auto">
+      <div
+        className={`w-full max-w-md mx-auto bg-zinc-900/80 backdrop-blur-xl border rounded-3xl p-5 sm:p-6 relative z-10 my-auto transition-all duration-300 ${
+          isMax
+            ? "border-red-500/30 shadow-[0_0_50px_rgba(239,68,68,0.1)]"
+            : "border-zinc-800/90 shadow-[0_0_50px_rgba(16,185,129,0.07)]"
+        }`}
+      >
         {/* Video Alanı */}
         {!previewUrl ? (
           <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-zinc-700/80 hover:border-emerald-500/70 rounded-2xl cursor-pointer bg-zinc-950/60 transition group mb-5">
@@ -263,13 +279,11 @@ export default function Home() {
         ) : (
           <div className="relative w-full h-64 sm:h-72 rounded-2xl overflow-hidden bg-black border border-zinc-800 mb-5 flex items-center justify-center select-none">
             {status === "done" && outputUrl ? (
-              /* Öncesi / Sonrası Karşılaştırma Slider */
               <div
                 onClick={syncPlayPause}
                 className="relative w-full h-full cursor-pointer group"
                 title="Oynat / Duraklat"
               >
-                {/* Sonrası (Tam katman) */}
                 <video
                   ref={afterVideoRef}
                   src={outputUrl}
@@ -280,7 +294,6 @@ export default function Home() {
                   className="absolute inset-0 w-full h-full object-contain bg-black"
                 />
 
-                {/* Öncesi (Kırpılmış sol katman) */}
                 <div
                   className="absolute inset-0 overflow-hidden"
                   style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)` }}
@@ -296,7 +309,6 @@ export default function Home() {
                   />
                 </div>
 
-                {/* Bölme Çizgisi */}
                 <div
                   className="absolute top-0 bottom-0 w-0.5 bg-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.9)] pointer-events-none"
                   style={{ left: `${sliderPos}%` }}
@@ -306,7 +318,6 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Etiketler */}
                 <span className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-md bg-zinc-950/80 text-[10px] font-medium text-zinc-300 border border-zinc-800 pointer-events-none">
                   Önce
                 </span>
@@ -314,7 +325,6 @@ export default function Home() {
                   ReVibe
                 </span>
 
-                {/* Görünmez Range Sürgüsü */}
                 <input
                   type="range"
                   min={0}
@@ -340,20 +350,36 @@ export default function Home() {
 
                 {isWorking && (
                   <div
-                    className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-emerald-600/55 via-emerald-500/35 to-emerald-400/20 border-t-2 border-emerald-400 shadow-[0_-8px_25px_rgba(16,185,129,0.5)] transition-all duration-300 ease-out"
+                    className={`absolute bottom-0 left-0 right-0 border-t-2 transition-all duration-300 ease-out ${
+                      isMax
+                        ? "bg-gradient-to-t from-red-600/55 via-red-500/35 to-red-400/20 border-red-400 shadow-[0_-8px_25px_rgba(239,68,68,0.5)]"
+                        : "bg-gradient-to-t from-emerald-600/55 via-emerald-500/35 to-emerald-400/20 border-emerald-400 shadow-[0_-8px_25px_rgba(16,185,129,0.5)]"
+                    }`}
                     style={{ height: `${progress}%` }}
                   />
                 )}
 
-                {isWorking && <MatrixRainOverlay />}
+                {isWorking && <MatrixRainOverlay isMax={isMax} />}
 
                 {isWorking && (
                   <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
-                    <div className="px-5 py-3 rounded-2xl bg-zinc-950/85 backdrop-blur-md border border-emerald-500/40 text-center shadow-xl min-w-[180px]">
-                      <div className="text-2xl font-mono font-bold text-emerald-400">
+                    <div
+                      className={`px-5 py-3 rounded-2xl bg-zinc-950/85 backdrop-blur-md border text-center shadow-xl min-w-[180px] ${
+                        isMax ? "border-red-500/40" : "border-emerald-500/40"
+                      }`}
+                    >
+                      <div
+                        className={`text-2xl font-mono font-bold ${
+                          isMax ? "text-red-400" : "text-emerald-400"
+                        }`}
+                      >
                         {status === "loading-ffmpeg" ? "..." : `${progress}%`}
                       </div>
-                      <div className="text-[10px] font-mono text-emerald-300/80 mt-1 tracking-wider">
+                      <div
+                        className={`text-[10px] font-mono mt-1 tracking-wider ${
+                          isMax ? "text-red-300/80" : "text-emerald-300/80"
+                        }`}
+                      >
                         {status === "loading-ffmpeg"
                           ? "ENGINE_BOOT..."
                           : LOG_STEPS[logIndex]}
@@ -378,28 +404,52 @@ export default function Home() {
           </div>
         )}
 
-        {/* Seviye Seçimi */}
-        <div className="grid grid-cols-3 gap-2 mb-3">
+        {/* Seviye Seçimi (4 Düymə: Hafif, Orta, Güçlü, MAX) */}
+        <div className="grid grid-cols-4 gap-1.5 mb-3">
           {[
-            { id: "light", title: "Hafif", desc: "Doğal Görünüm" },
+            { id: "light", title: "Hafif", desc: "Doğal" },
             { id: "medium", title: "Orta", desc: "Önerilen" },
-            { id: "deep", title: "Güçlü", desc: "Maksimum Etki" },
-          ].map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              disabled={isWorking}
-              onClick={() => setMode(item.id)}
-              className={`py-2.5 px-2 rounded-xl border text-center transition cursor-pointer disabled:opacity-50 ${
-                mode === item.id
-                  ? "border-emerald-500 bg-emerald-500/10 text-white shadow-[0_0_20px_rgba(16,185,129,0.12)]"
-                  : "border-zinc-800 bg-zinc-950/60 text-zinc-400 hover:border-zinc-700"
-              }`}
-            >
-              <div className="text-sm font-semibold">{item.title}</div>
-              <div className="text-[11px] opacity-70 mt-0.5">{item.desc}</div>
-            </button>
-          ))}
+            { id: "deep", title: "Güçlü", desc: "Yüksek" },
+            { id: "max", title: "MAX", desc: "Ekstrem" },
+          ].map((item) => {
+            const active = mode === item.id;
+            const isMaxBtn = item.id === "max";
+
+            let btnStyle =
+              "border-zinc-800 bg-zinc-950/60 text-zinc-400 hover:border-zinc-700";
+
+            if (active && isMaxBtn) {
+              btnStyle =
+                "border-red-500 bg-red-500/15 text-red-100 shadow-[0_0_22px_rgba(239,68,68,0.28)]";
+            } else if (active) {
+              btnStyle =
+                "border-emerald-500 bg-emerald-500/10 text-white shadow-[0_0_20px_rgba(16,185,129,0.12)]";
+            } else if (isMaxBtn) {
+              btnStyle =
+                "border-red-950/80 bg-zinc-950/60 text-red-400/80 hover:border-red-500/50";
+            }
+
+            return (
+              <button
+                key={item.id}
+                type="button"
+                disabled={isWorking}
+                onClick={() => setMode(item.id)}
+                className={`py-2.5 px-1.5 rounded-xl border text-center transition cursor-pointer disabled:opacity-50 ${btnStyle}`}
+              >
+                <div className="text-xs sm:text-sm font-bold tracking-tight">
+                  {item.title}
+                </div>
+                <div
+                  className={`text-[10px] mt-0.5 ${
+                    active && isMaxBtn ? "text-red-300" : "opacity-70"
+                  }`}
+                >
+                  {item.desc}
+                </div>
+              </button>
+            );
+          })}
         </div>
 
         {/* Ekstra Hızlı Seçenekler (Ayna & 60 FPS) */}
@@ -438,12 +488,18 @@ export default function Home() {
           <button
             onClick={handleProcess}
             disabled={!videoFile || isWorking}
-            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 disabled:from-zinc-800 disabled:to-zinc-800 disabled:text-zinc-500 text-zinc-950 font-bold transition shadow-lg shadow-emerald-500/20 disabled:shadow-none cursor-pointer"
+            className={`w-full py-3.5 rounded-xl disabled:from-zinc-800 disabled:to-zinc-800 disabled:text-zinc-500 font-bold transition shadow-lg disabled:shadow-none cursor-pointer ${
+              isMax
+                ? "bg-gradient-to-r from-red-600 to-rose-500 hover:from-red-500 hover:to-rose-400 text-white shadow-red-500/25"
+                : "bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-zinc-950 shadow-emerald-500/20"
+            }`}
           >
             {status === "loading-ffmpeg"
               ? "Hazırlanıyor..."
               : status === "processing"
               ? `İşleniyor... ${progress}%`
+              : isMax
+              ? "MAX Özgünleştir"
               : "Özgünleştir"}
           </button>
         )}
