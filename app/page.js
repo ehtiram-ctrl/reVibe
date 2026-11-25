@@ -51,11 +51,11 @@ function MatrixRainOverlay({ isMax }) {
 
 const LOG_STEPS = [
   "METADATA_STRIP → OK",
+  "ENCODER_SIG → WIPED",
   "HASH_SIGNATURE → RESET",
   "FRAME_MATRIX → SHIFTED",
   "AUDIO_PITCH → MODIFIED",
   "COLOR_LUT → CALIBRATED",
-  "BITRATE_BOOST → ACTIVE",
 ];
 
 export default function Home() {
@@ -68,6 +68,7 @@ export default function Home() {
   const [progress, setProgress] = useState(0);
   const [logIndex, setLogIndex] = useState(0);
   const [outputUrl, setOutputUrl] = useState(null);
+  const [outputFilename, setOutputFilename] = useState("VID_output.mp4");
   const [outputSizeMB, setOutputSizeMB] = useState(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [sliderPos, setSliderPos] = useState(50);
@@ -137,21 +138,27 @@ export default function Home() {
 
       await ffmpeg.writeFile(inputName, await fetchFile(videoFile));
 
+      // Hər emalda iz qalmaması üçün mikro təsadüfi sapma
+      const jitter = (Math.random() * 0.006 - 0.003).toFixed(4);
+
       let vfParts = [];
       let af = "";
 
       if (mode === "light") {
-        vfParts.push("crop=iw*0.98:ih*0.98,scale=iw:ih,eq=contrast=1.02:saturation=1.03,setpts=0.99*PTS");
+        const c = (1.02 + Number(jitter)).toFixed(3);
+        vfParts.push(`crop=iw*0.98:ih*0.98,scale=iw:ih,eq=contrast=${c}:saturation=1.03,setpts=0.99*PTS`);
         af = "atempo=1.01";
       } else if (mode === "medium") {
-        vfParts.push("crop=iw*0.96:ih*0.96,scale=iw:ih,eq=contrast=1.04:brightness=0.01:saturation=1.06,setpts=0.98*PTS");
+        const c = (1.04 + Number(jitter)).toFixed(3);
+        vfParts.push(`crop=iw*0.96:ih*0.96,scale=iw:ih,eq=contrast=${c}:brightness=0.01:saturation=1.06,setpts=0.98*PTS`);
         af = "asetrate=44100*1.015,aresample=44100,atempo=1.005";
       } else if (mode === "deep") {
-        vfParts.push("crop=iw*0.94:ih*0.94,scale=iw:ih,eq=contrast=1.06:brightness=0.015:saturation=1.08,noise=alls=2:allf=t,setpts=0.97*PTS");
+        const c = (1.06 + Number(jitter)).toFixed(3);
+        vfParts.push(`crop=iw*0.94:ih*0.94,scale=iw:ih,eq=contrast=${c}:brightness=0.015:saturation=1.08,noise=alls=2:allf=t,setpts=0.97*PTS`);
         af = "asetrate=44100*1.025,aresample=44100,atempo=1.005";
       } else {
-        // MAX rejimi: 8% kəsim + mikro rəng tonu + canlı kontrast + 1.04x sürət + zərif tekstura
-        vfParts.push("crop=iw*0.92:ih*0.92,scale=iw:ih,hue=h=3:s=1.12,eq=contrast=1.09:brightness=0.02,noise=alls=3:allf=t,setpts=0.96*PTS");
+        const c = (1.09 + Number(jitter)).toFixed(3);
+        vfParts.push(`crop=iw*0.92:ih*0.92,scale=iw:ih,hue=h=3:s=1.12,eq=contrast=${c}:brightness=0.02,noise=alls=3:allf=t,setpts=0.96*PTS`);
         af = "asetrate=44100*1.035,aresample=44100,atempo=1.006";
       }
 
@@ -166,6 +173,9 @@ export default function Home() {
       await ffmpeg.exec([
         "-i", inputName,
         "-map_metadata", "-1",
+        "-fflags", "+bitexact",
+        "-flags:v", "+bitexact",
+        "-flags:a", "+bitexact",
         "-vf", vfParts.join(","),
         "-af", af,
         "-c:v", "libx264",
@@ -179,6 +189,10 @@ export default function Home() {
       const data = await ffmpeg.readFile(outputName);
       const blob = new Blob([data.buffer], { type: "video/mp4" });
       const url = URL.createObjectURL(blob);
+
+      const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+      const randId = Math.floor(100000 + Math.random() * 900000);
+      setOutputFilename(`VID_${dateStr}_${randId}.mp4`);
 
       setProgress(100);
       setOutputSizeMB((blob.size / (1024 * 1024)).toFixed(2));
@@ -517,7 +531,7 @@ export default function Home() {
                 <span>✓</span> Metadata sıfırlandı
               </div>
               <div className="text-emerald-400 flex items-center gap-1.5">
-                <span>✓</span> Yeni Hash oluşturuldu
+                <span>✓</span> Encoder imzası silindi
               </div>
               <div className="text-emerald-400 flex items-center gap-1.5">
                 <span>✓</span> Ses frekansı değişti
@@ -542,7 +556,7 @@ export default function Home() {
               </button>
               <a
                 href={outputUrl}
-                download={`revibe_${videoFile?.name || "video.mp4"}`}
+                download={outputFilename}
                 className="flex-1 py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-zinc-950 text-center font-bold transition shadow-lg shadow-emerald-500/20"
               >
                 Videoyu İndir
